@@ -13,11 +13,11 @@ def noko_for(url)
   Nokogiri::HTML(open(url).read)
 end
 
-def scrape_list(url)
+def member_data(url)
   noko = noko_for(url)
-  noko.xpath('//table[.//tr[contains(.,"Member of Parliament")]]').each do |table|
+  noko.xpath('//table[.//tr[contains(.,"Member of Parliament")]]').flat_map do |table|
     area = table.xpath('preceding-sibling::h2[1]/span[@class="mw-headline"]').text
-    table.xpath('.//tr[td]').each do |tr|
+    table.xpath('.//tr[td]').map do |tr|
       tds = tr.css('td')
       data = {
         name:     tds[0].text,
@@ -27,11 +27,12 @@ def scrape_list(url)
         term:     14,
         source:   url,
       }
-      puts data.reject { |_, v| v.to_s.empty? }.sort_by { |k, _| k }.to_h if ENV['MORPH_DEBUG']
-      ScraperWiki.save_sqlite(%i(name party area term), data)
     end
   end
 end
 
+data = member_data('https://en.wikipedia.org/wiki/14th_Parliament_of_Northern_Cyprus')
+data.each { |mem| puts mem.reject { |_, v| v.to_s.empty? }.sort_by { |k, _| k }.to_h } if ENV['MORPH_DEBUG']
+
 ScraperWiki.sqliteexecute('DELETE FROM data') rescue nil
-scrape_list('https://en.wikipedia.org/wiki/14th_Parliament_of_Northern_Cyprus')
+ScraperWiki.save_sqlite(%i(name party area term), data)
